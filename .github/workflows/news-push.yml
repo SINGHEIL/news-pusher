@@ -1,0 +1,47 @@
+name: 每日公考财会新闻推送
+
+on:
+  schedule:
+    # 每天北京时间上午9:00运行（UTC时间1:00）
+    - cron: '0 1 * * *'
+  # 允许手动触发
+  workflow_dispatch:
+
+jobs:
+  news-push:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v3
+    
+    - name: 设置Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: 安装依赖
+      run: |
+        pip install requests beautifulsoup4 schedule python-dotenv
+    
+    - name: 创建配置文件
+      run: |
+        cat > .env << EOF
+        WECHAT_TEST=True
+        WECHAT_TEST_APPID=${{ secrets.WECHAT_APPID }}
+        WECHAT_TEST_SECRET=${{ secrets.WECHAT_SECRET }}
+        WECHAT_TEST_TOUSER=${{ secrets.WECHAT_TOUSER }}
+        PUSH_TIME=09:00
+        LOG_LEVEL=INFO
+        EOF
+    
+    - name: 运行推送程序
+      run: |
+        python main.py
+    
+    - name: 上传日志
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: push-log
+        path: news_pusher.log

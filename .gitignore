@@ -1,0 +1,5 @@
+.env
+news_pusher.log
+__pycache__/
+*.pyc
+.DS_Store
