@@ -60,13 +60,24 @@ class WeChatNotifier:
                 url = f"https://api.weixin.qq.com/cgi-bin/message/custom/send?access_token={access_token}"
                 touser = self.config.get('WECHAT_TEST_TOUSER')
                 
+                # 处理内容：去除多余空行，确保非空
+                processed_content = content.strip()
+                if not processed_content:
+                    processed_content = "今日暂无新闻更新"
+                
+                # 限制长度为 1024 字符
+                if len(processed_content) > 1024:
+                    processed_content = processed_content[:1020] + "..."
+                
                 message = {
                     "touser": touser,
                     "msgtype": "text",
                     "text": {
-                        "content": content[:1024]
+                        "content": processed_content
                     }
                 }
+                
+                logger.info(f"消息内容长度: {len(processed_content)} 字符")
                 
                 headers = {'Content-Type': 'application/json; charset=utf-8'}
                 response = requests.post(url, data=json.dumps(message, ensure_ascii=False), headers=headers, timeout=10)
