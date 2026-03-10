@@ -69,7 +69,7 @@ class WeChatNotifier:
                 }
                 
                 headers = {'Content-Type': 'application/json; charset=utf-8'}
-                response = requests.post(url, json=message, headers=headers, timeout=10)
+                response = requests.post(url, data=json.dumps(message, ensure_ascii=False), headers=headers, timeout=10)
                 result = response.json()
                 
                 logger.info(f"消息发送结果: {result}")
