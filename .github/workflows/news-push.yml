@@ -23,5 +23,8 @@ jobs:
         pip install requests beautifulsoup4 schedule python-dotenv
     
     - name: 运行推送程序
-      run: |
-        python -c "import logging; logging.basicConfig(level=logging.INFO); from exam_news_fetcher import ExamNewsFetcher; from content_filter import ContentFilter; from wechat_notifier import WeChatNotifier; fetcher = ExamNewsFetcher(); filter = ContentFilter(use_ai=False); notifier = WeChatNotifier({'WECHAT_TEST': True, 'WECHAT_TEST_APPID': '${{ secrets.WECHAT_APPID }}', 'WECHAT_TEST_SECRET': '${{ secrets.WECHAT_SECRET }}', 'WECHAT_TEST_TOUSER': '${{ secrets.WECHAT_TOUSER }}'}); all_news = fetcher.fetch_all_news(); filtered_news = filter.filter_news(all_news); report = filter.format_report(filtered_news); success = notifier.format_and_send(report); logging.info('成功!' if success else '失败!')"
+      run: python run_push.py
+      env:
+        WECHAT_TEST_APPID: ${{ secrets.WECHAT_APPID }}
+        WECHAT_TEST_SECRET: ${{ secrets.WECHAT_SECRET }}
+        WECHAT_TEST_TOUSER: ${{ secrets.WECHAT_TOUSER }}
