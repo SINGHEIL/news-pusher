@@ -11,7 +11,12 @@ try:
     from wechat_notifier import WeChatNotifier
     
     logging.info('开始抓取新闻...')
-    fetcher = EnhancedNewsFetcher()
+    
+    # 获取DeepSeek API密钥（免费）
+    import os
+    deepseek_key = os.getenv('DEEPSEEK_API_KEY', '')
+    
+    fetcher = EnhancedNewsFetcher(api_key=deepseek_key)
     
     logging.info('抓取所有新闻源...')
     all_news = fetcher.fetch_all_news()
@@ -21,7 +26,6 @@ try:
     report = generator.filter_and_format(all_news)
     
     logging.info('初始化微信推送...')
-    import os
     notifier_config = {
         'WECHAT_TEST': True,
         'WECHAT_TEST_APPID': os.getenv('WECHAT_TEST_APPID', ''),
