@@ -15,16 +15,19 @@ class ContentFilter:
         self.keywords = {
             '公考': [
                 '财会岗', '税务局', '财政局', '招聘', '考试', '公告', 
-                '公务员', '事业单位', '招录', '报考', '资格'
+                '公务员', '事业单位', '招录', '报考', '资格', '报名',
+                '面试', '体检', '公示', '录用'
             ],
             '政策': [
                 '优惠政策', '横琴', '金融', '开放', '改革', '新区', 
                 '会计法', '准则', '更新', '通知', '实施', '新质生产力',
-                '大湾区', '产业', '投资', '补贴', '扶持'
+                '大湾区', '产业', '投资', '补贴', '扶持', '退税',
+                '减税', '免税', '税率'
             ],
             '专业课': [
                 '会计', '审计', '财务', '税收', '预算', '决算',
-                '准则', '制度', '规范', '标准', '处理', '核算'
+                '准则', '制度', '规范', '标准', '处理', '核算',
+                '资产', '负债', '收入', '费用', '利润'
             ]
         }
     
@@ -66,6 +69,24 @@ class ContentFilter:
         
         return False
     
+    def extract_key_info(self, title: str) -> str:
+        """从标题提取关键信息"""
+        key_info = []
+        
+        # 提取日期
+        import re
+        date_pattern = r'\d{4}年\d{1,2}月\d{1,2}日|\d{4}-\d{1,2}-\d{1,2}|\d{1,2}月\d{1,2}日'
+        dates = re.findall(date_pattern, title)
+        if dates:
+            key_info.append(f"📅 {dates[0]}")
+        
+        # 提取数字（如招聘人数、金额等）
+        numbers = re.findall(r'\d+(?:,\d{3})*(?:万|亿|人|元|个|项)?', title)
+        if numbers:
+            key_info.append(f"🔢 {', '.join(numbers[:3])}")
+        
+        return ' '.join(key_info)
+    
     def generate_summary(self, news: Dict) -> str:
         """生成新闻摘要"""
         title = news.get('title', '')
@@ -80,91 +101,75 @@ class ContentFilter:
     
     def _rule_summary(self, title: str, source: str, category: str) -> str:
         """基于规则生成摘要"""
-        summary = f"{title}\n来源: {source}"
+        summary = []
+        
+        # 提取关键信息
+        key_info = self.extract_key_info(title)
+        if key_info:
+            summary.append(key_info)
         
         # 根据分类添加备考关联
         if category == '公考':
-            summary += "\n关联: 可作为面试素材"
+            summary.append("💼 可作为面试素材")
         elif category == '政策':
-            summary += "\n关联: 关注政策变化"
+            summary.append("📌 关注政策变化")
+        elif category == '综合':
+            summary.append("📖 财会相关知识")
         
-        return summary
-    
-    def _ai_summary(self, news: Dict) -> str:
-        """使用AI生成智能摘要"""
-        try:
-            from openai import OpenAI
-            
-            client = OpenAI(
-                api_key=self.api_key,
-                base_url="https://api.openai.com/v1"
-            )
-            
-            prompt = f"""
-你是一名专业的财会公考导师。请为以下新闻生成一个精炼摘要，要求：
-1. 核心事实（30字以内）
-2. 备考/职业关联度（50字以内）
-
-新闻标题: {news['title']}
-新闻来源: {news['source']}
-分类: {news['category']}
-
-请用以下格式输出：
-核心事实：XXX
-备考关联：XXX
-"""
-            
-            response = client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "system", "content": "你是专业的财会公考导师"},
-                    {"role": "user", "content": prompt}
-                ],
-                max_tokens=200,
-                temperature=0.7
-            )
-            
-            return response.choices[0].message.content.strip()
-            
-        except Exception as e:
-            logger.error(f"AI摘要生成失败: {str(e)}")
-            return self._rule_summary(news['title'], news['source'], news['category'])
+        return ' '.join(summary) if summary else "👇 查看详情"
     
     def format_report(self, filtered_news: Dict[str, List[Dict]]) -> str:
-        """格式化为Markdown简报（精简版）"""
+        """格式化为Markdown简报（优化版）"""
         report = []
         date = datetime.now().strftime('%Y年%m月%d日')
+        weekday = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'][datetime.now().weekday()]
         
-        report.append(f"📅 每日财会备考简报 - {date}\n")
+        report.append(f"📅 每日财会备考简报 - {date} {weekday}")
+        report.append(f"{'='*35}\n")
         
         # 公考热点
         if filtered_news['公考']:
             report.append("【公考热点】")
-            for i, news in enumerate(filtered_news['公考'][:2], 1):
-                report.append(f"{i}. {news['title'][:30]}...")
-                report.append(f"   {news['source']}")
+            for i, news in enumerate(filtered_news['公考'][:3], 1):
+                report.append(f"\n{i}. {news['title']}")
+                report.append(f"   📍 {news['source']}")
+                key_info = self.extract_key_info(news['title'])
+                if key_info:
+                    report.append(f"   {key_info}")
+                report.append(f"   💼 面试素材/报考参考")
+                if news.get('link'):
+                    report.append(f"   🔗 {news['link']}")
             report.append("")
         
         # 政策速递
         if filtered_news['政策']:
             report.append("【政策速递】")
-            for i, news in enumerate(filtered_news['政策'][:2], 1):
-                report.append(f"{i}. {news['title'][:30]}...")
-                report.append(f"   {news['source']}")
+            for i, news in enumerate(filtered_news['政策'][:3], 1):
+                report.append(f"\n{i}. {news['title']}")
+                report.append(f"   📍 {news['source']}")
+                key_info = self.extract_key_info(news['title'])
+                if key_info:
+                    report.append(f"   {key_info}")
+                report.append(f"   📌 关注政策动向")
+                if news.get('link'):
+                    report.append(f"   🔗 {news['link']}")
             report.append("")
         
         # 专业课更新
         if filtered_news['综合']:
-            report.append("【专业课更新】")
+            report.append("【财会相关】")
             for i, news in enumerate(filtered_news['综合'][:2], 1):
                 report.append(f"\n{i}. {news['title']}")
-                report.append(f"   来源: {news['source']}")
-                summary = self.generate_summary(news)
-                report.append(f"   {summary}")
-                report.append(f"   链接: {news['link']}")
+                report.append(f"   📍 {news['source']}")
+                report.append(f"   📖 财会知识点")
+                if news.get('link'):
+                    report.append(f"   🔗 {news['link']}")
             report.append("")
         
-        # 只显示总数
-        report.append(f"\n共 {sum(len(news) for news in filtered_news.values())} 条新闻")
+        # 统计信息
+        total = sum(len(news) for news in filtered_news.values())
+        report.append(f"\n{'='*35}")
+        report.append(f"📊 今日共收录 {total} 条资讯")
+        report.append(f"💡 提示：点击链接查看完整内容")
         
         return "\n".join(report)
