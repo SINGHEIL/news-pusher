@@ -48,16 +48,34 @@ class WeChatNotifier:
             logger.error(f"获取access_token异常: {str(e)}")
             return ''
     
+    def send_single_message(self, content: str, touser: str) -> bool:
+        """发送单条消息"""
+        url = f"https://api.weixin.qq.com/cgi-bin/message/custom/send?access_token={self.access_token}"
+        
+        message = {
+            "touser": touser,
+            "msgtype": "text",
+            "text": {
+                "content": content
+            }
+        }
+        
+        headers = {'Content-Type': 'application/json; charset=utf-8'}
+        json_data = json.dumps(message, ensure_ascii=False)
+        response = requests.post(url, data=json_data.encode('utf-8'), headers=headers, timeout=10)
+        result = response.json()
+        
+        logger.info(f"消息发送结果: {result}")
+        return result.get('errcode') == 0
+    
     def send_text_message(self, content: str) -> bool:
-        """发送文本消息"""
+        """发送文本消息（支持分段发送）"""
         access_token = self.get_access_token()
         if not access_token:
             return False
         
         try:
             if self.config.get('WECHAT_TEST'):
-                # 测试号使用客服消息
-                url = f"https://api.weixin.qq.com/cgi-bin/message/custom/send?access_token={access_token}"
                 touser = self.config.get('WECHAT_TEST_TOUSER')
                 
                 # 处理内容：去除多余空行，确保非空
@@ -65,30 +83,52 @@ class WeChatNotifier:
                 if not processed_content:
                     processed_content = "今日暂无新闻更新"
                 
-                # 限制长度为 1024 字符
-                if len(processed_content) > 1024:
-                    processed_content = processed_content[:1020] + "..."
+                # 微信API限制：2048字节，中文字符占3字节，每条最多约680字符
+                max_chars_per_msg = 680
                 
-                message = {
-                    "touser": touser,
-                    "msgtype": "text",
-                    "text": {
-                        "content": processed_content
-                    }
-                }
-                
-                logger.info(f"消息内容长度: {len(processed_content)} 字符")
-                logger.info(f"Content字段长度: {len(message['text']['content'])} 字符")
-                
-                headers = {'Content-Type': 'application/json; charset=utf-8'}
-                # 先转换为 JSON 字符串，然后编码为 UTF-8
-                json_data = json.dumps(message, ensure_ascii=False)
-                logger.info(f"发送的JSON数据前200字符: {json_data[:200]}")
-                response = requests.post(url, data=json_data.encode('utf-8'), headers=headers, timeout=10)
-                result = response.json()
-                
-                logger.info(f"消息发送结果: {result}")
-                return result.get('errcode') == 0
+                # 如果内容超过限制，分段发送
+                if len(processed_content) <= max_chars_per_msg:
+                    logger.info(f"发送单条消息，长度: {len(processed_content)} 字符")
+                    return self.send_single_message(processed_content, touser)
+                else:
+                    logger.info(f"内容过长，将分段发送，总长度: {len(processed_content)} 字符")
+                    
+                    # 按行分割，尽量在换行处分段
+                    lines = processed_content.split('\n')
+                    current_msg = ""
+                    success_count = 0
+                    msg_count = 0
+                    
+                    for line in lines:
+                        # 如果加上这一行不会超限
+                        if len(current_msg + '\n' + line) <= max_chars_per_msg:
+                            if current_msg:
+                                current_msg += '\n' + line
+                            else:
+                                current_msg = line
+                        else:
+                            # 发送当前消息
+                            if current_msg:
+                                msg_count += 1
+                                logger.info(f"发送第 {msg_count} 段，长度: {len(current_msg)} 字符")
+                                if self.send_single_message(current_msg, touser):
+                                    success_count += 1
+                                # 添加延迟避免发送过快
+                                import time
+                                time.sleep(0.5)
+                            
+                            # 开始新消息
+                            current_msg = line
+                    
+                    # 发送最后一段
+                    if current_msg:
+                        msg_count += 1
+                        logger.info(f"发送第 {msg_count} 段，长度: {len(current_msg)} 字符")
+                        if self.send_single_message(current_msg, touser):
+                            success_count += 1
+                    
+                    logger.info(f"分段发送完成: {success_count}/{msg_count} 成功")
+                    return success_count == msg_count
             else:
                 logger.info("正式号建议使用模板消息")
                 return False
