@@ -24,24 +24,38 @@ jobs:
       run: |
         pip install requests beautifulsoup4 schedule python-dotenv
     
-    - name: 创建配置文件
+    - name: 运行推送程序（立即执行）
       run: |
-        cat > .env << EOF
-        WECHAT_TEST=True
-        WECHAT_TEST_APPID=${{ secrets.WECHAT_APPID }}
-        WECHAT_TEST_SECRET=${{ secrets.WECHAT_SECRET }}
-        WECHAT_TEST_TOUSER=${{ secrets.WECHAT_TOUSER }}
-        PUSH_TIME=09:00
-        LOG_LEVEL=INFO
-        EOF
-    
-    - name: 运行推送程序
-      run: |
-        python main.py
-    
-    - name: 上传日志
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: push-log
-        path: news_pusher.log
+        python -c "
+import sys
+import logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+from exam_news_fetcher import ExamNewsFetcher
+from content_filter import ContentFilter
+from wechat_notifier import WeChatNotifier
+
+fetcher = ExamNewsFetcher()
+filter = ContentFilter(use_ai=False)
+notifier_config = {
+    'WECHAT_TEST': True,
+    'WECHAT_TEST_APPID': '${{ secrets.WECHAT_APPID }}',
+    'WECHAT_TEST_SECRET': '${{ secrets.WECHAT_SECRET }}',
+    'WECHAT_TEST_TOUSER': '${{ secrets.WECHAT_TOUSER }}',
+}
+notifier = WeChatNotifier(notifier_config)
+
+logging.info('开始抓取新闻...')
+all_news = fetcher.fetch_all_news()
+filtered_news = filter.filter_news(all_news)
+report = filter.format_report(filtered_news)
+
+logging.info('推送到微信...')
+success = notifier.format_and_send(report)
+
+if success:
+    logging.info('推送成功!')
+else:
+    logging.error('推送失败!')
+    sys.exit(1)
+"
