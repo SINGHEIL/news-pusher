@@ -2,9 +2,7 @@ name: 每日公考财会新闻推送
 
 on:
   schedule:
-    # 每天北京时间上午9:00运行（UTC时间1:00）
     - cron: '0 1 * * *'
-  # 允许手动触发
   workflow_dispatch:
 
 jobs:
@@ -24,38 +22,6 @@ jobs:
       run: |
         pip install requests beautifulsoup4 schedule python-dotenv
     
-    - name: 运行推送程序（立即执行）
+    - name: 运行推送程序
       run: |
-        python -c "
-import sys
-import logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
-from exam_news_fetcher import ExamNewsFetcher
-from content_filter import ContentFilter
-from wechat_notifier import WeChatNotifier
-
-fetcher = ExamNewsFetcher()
-filter = ContentFilter(use_ai=False)
-notifier_config = {
-    'WECHAT_TEST': True,
-    'WECHAT_TEST_APPID': '${{ secrets.WECHAT_APPID }}',
-    'WECHAT_TEST_SECRET': '${{ secrets.WECHAT_SECRET }}',
-    'WECHAT_TEST_TOUSER': '${{ secrets.WECHAT_TOUSER }}',
-}
-notifier = WeChatNotifier(notifier_config)
-
-logging.info('开始抓取新闻...')
-all_news = fetcher.fetch_all_news()
-filtered_news = filter.filter_news(all_news)
-report = filter.format_report(filtered_news)
-
-logging.info('推送到微信...')
-success = notifier.format_and_send(report)
-
-if success:
-    logging.info('推送成功!')
-else:
-    logging.error('推送失败!')
-    sys.exit(1)
-"
+        python -c "import logging; logging.basicConfig(level=logging.INFO); from exam_news_fetcher import ExamNewsFetcher; from content_filter import ContentFilter; from wechat_notifier import WeChatNotifier; fetcher = ExamNewsFetcher(); filter = ContentFilter(use_ai=False); notifier = WeChatNotifier({'WECHAT_TEST': True, 'WECHAT_TEST_APPID': '${{ secrets.WECHAT_APPID }}', 'WECHAT_TEST_SECRET': '${{ secrets.WECHAT_SECRET }}', 'WECHAT_TEST_TOUSER': '${{ secrets.WECHAT_TOUSER }}'}); all_news = fetcher.fetch_all_news(); filtered_news = filter.filter_news(all_news); report = filter.format_report(filtered_news); success = notifier.format_and_send(report); logging.info('成功!' if success else '失败!')"
