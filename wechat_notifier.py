@@ -113,7 +113,10 @@ class WeChatNotifier:
                     }
                 }
                 
-                response = requests.post(url, json=message, timeout=10)
+                headers = {
+    'Content-Type': 'application/json; charset=utf-8'
+}
+response = requests.post(url, json=message, headers=headers, timeout=10)
                 result = response.json()
                 
                 # 如果模板消息失败，尝试使用其他方式
@@ -147,7 +150,10 @@ class WeChatNotifier:
                 }
             }
             
-            response = requests.post(url, json=message, timeout=10)
+            headers = {
+    'Content-Type': 'application/json; charset=utf-8'
+}
+response = requests.post(url, json=message, headers=headers, timeout=10)
             result = response.json()
             
             logger.info(f"简单消息发送结果: {result}")
