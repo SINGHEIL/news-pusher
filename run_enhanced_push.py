@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 import sys
 import logging
+import os
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -10,10 +11,15 @@ try:
     from enhanced_report_generator import EnhancedReportGenerator
     from wechat_notifier import WeChatNotifier
     
+    # 获取环境变量（调试输出）
+    logging.info(f"微信APPID: {os.getenv('WECHAT_TEST_APPID', '未设置')[:10]}...")
+    logging.info(f"微信Secret: {os.getenv('WECHAT_TEST_SECRET', '未设置')[:10]}...")
+    logging.info(f"微信OpenID: {os.getenv('WECHAT_TEST_TOUSER', '未设置')}")
+    logging.info(f"DeepSeek API: {os.getenv('DEEPSEEK_API_KEY', '未设置')[:10]}...")
+    
     logging.info('开始抓取新闻...')
     
     # 获取DeepSeek API密钥（免费）
-    import os
     deepseek_key = os.getenv('DEEPSEEK_API_KEY', '')
     
     fetcher = EnhancedNewsFetcher(api_key=deepseek_key)
