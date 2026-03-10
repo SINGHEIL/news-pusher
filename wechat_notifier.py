@@ -78,9 +78,13 @@ class WeChatNotifier:
                 }
                 
                 logger.info(f"消息内容长度: {len(processed_content)} 字符")
+                logger.info(f"Content字段长度: {len(message['text']['content'])} 字符")
                 
                 headers = {'Content-Type': 'application/json; charset=utf-8'}
-                response = requests.post(url, data=json.dumps(message, ensure_ascii=False), headers=headers, timeout=10)
+                # 先转换为 JSON 字符串，然后编码为 UTF-8
+                json_data = json.dumps(message, ensure_ascii=False)
+                logger.info(f"发送的JSON数据前200字符: {json_data[:200]}")
+                response = requests.post(url, data=json_data.encode('utf-8'), headers=headers, timeout=10)
                 result = response.json()
                 
                 logger.info(f"消息发送结果: {result}")
