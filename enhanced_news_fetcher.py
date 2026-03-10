@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 增强版新闻抓取器 - 支持政经军和财经新闻
-提供正文内容抓取和摘要提取
+提供正文内容抓取和AI智能总结
 """
 
 import requests
@@ -11,13 +11,15 @@ import logging
 from typing import List, Dict
 from datetime import datetime
 import re
+import openai
 
 logger = logging.getLogger(__name__)
 
 class EnhancedNewsFetcher:
     """增强版新闻抓取器"""
     
-    def __init__(self):
+    def __init__(self, api_key: str = ''):
+        self.api_key = api_key
         # 政治新闻源
         self.political_sources = [
             {
@@ -129,9 +131,9 @@ class EnhancedNewsFetcher:
                 paragraphs = content_div.find_all('p')
                 content = '\n'.join([p.get_text(strip=True) for p in paragraphs if p.get_text(strip=True)])
                 
-                # 限制长度（最多500字）
-                if len(content) > 500:
-                    content = content[:500] + '...'
+                # 限制长度（最多1000字用于AI分析）
+                if len(content) > 1000:
+                    content = content[:1000]
                 
                 return content
             
@@ -139,6 +141,71 @@ class EnhancedNewsFetcher:
         except Exception as e:
             logger.error(f"提取文章内容失败 {url}: {str(e)}")
             return ''
+    
+    def ai_summarize_news(self, title: str, content: str, category: str) -> Dict:
+        """使用AI总结新闻（支持DeepSeek免费API）"""
+        if not self.api_key:
+            return {
+                'summary': content[:200] if content else '点击查看完整内容',
+                'evaluation': '',
+                'suggestion': ''
+            }
+        
+        try:
+            # 使用 DeepSeek API
+            client = openai.OpenAI(
+                api_key=self.api_key,
+                base_url="https://api.deepseek.com"
+            )
+            
+            prompt = f"""你是一名专业的新闻分析师，擅长分析{category}新闻。请对以下新闻进行分析：
+
+标题：{title}
+内容：{content}
+
+请按以下格式输出（每项50字以内）：
+【摘要】用一句话概括核心内容
+【评价】客观评价这条新闻的重要性/影响
+【建议】基于用户需求给出建议"""
+
+            response = client.chat.completions.create(
+                model="deepseek-chat",
+                messages=[
+                    {"role": "system", "content": "你是专业的新闻分析师"},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=500,
+                temperature=0.7
+            )
+            
+            result = response.choices[0].message.content.strip()
+            
+            # 解析AI输出
+            summary = ''
+            evaluation = ''
+            suggestion = ''
+            
+            for line in result.split('\n'):
+                if line.startswith('【摘要】'):
+                    summary = line.replace('【摘要】', '').strip()
+                elif line.startswith('【评价】'):
+                    evaluation = line.replace('【评价】', '').strip()
+                elif line.startswith('【建议】'):
+                    suggestion = line.replace('【建议】', '').strip()
+            
+            return {
+                'summary': summary if summary else (content[:200] if content else '点击查看完整内容'),
+                'evaluation': evaluation,
+                'suggestion': suggestion
+            }
+            
+        except Exception as e:
+            logger.error(f"AI分析失败: {str(e)}")
+            return {
+                'summary': content[:200] if content else '点击查看完整内容',
+                'evaluation': '',
+                'suggestion': ''
+            }
     
     def fetch_from_source(self, source: Dict, max_articles: int = 3) -> List[Dict]:
         """从指定源抓取新闻"""
@@ -153,7 +220,7 @@ class EnhancedNewsFetcher:
             # 查找新闻链接
             links = soup.select(source['list_selector'])
             
-            for i, link in enumerate(links[:max_articles * 2]):  # 多抓取一些备用
+            for i, link in enumerate(links[:max_articles * 2]):
                 if len(news_list) >= max_articles:
                     break
                 
@@ -171,12 +238,11 @@ class EnhancedNewsFetcher:
                     base_url = source['url']
                     href = base_url + href if href.startswith('/') else base_url + '/' + href
                 
-                # 尝试提取正文内容
+                # 提取正文内容
                 content = self.extract_article_content(href, source.get('content_selector', ''))
                 
-                # 如果没有内容，就只发标题
-                if not content:
-                    content = "点击查看完整内容"
+                # AI分析
+                ai_result = self.ai_summarize_news(title, content, source['category'])
                 
                 news_list.append({
                     'title': title,
@@ -184,10 +250,13 @@ class EnhancedNewsFetcher:
                     'category': source['category'],
                     'source': source['name'],
                     'content': content,
+                    'summary': ai_result['summary'],
+                    'evaluation': ai_result['evaluation'],
+                    'suggestion': ai_result['suggestion'],
                     'date': datetime.now().strftime('%Y-%m-%d')
                 })
                 
-                # 添加延迟避免请求过快
+                # 添加延迟
                 import time
                 time.sleep(1)
             
