@@ -17,9 +17,11 @@ class WeChatNotifier:
         """获取微信access_token"""
         import time
         
+        # 检查token是否有效
         if self.access_token and time.time() < self.token_expire_time:
             return self.access_token
         
+        # 确定使用测试号还是正式号
         if self.config.get('WECHAT_TEST'):
             appid = self.config.get('WECHAT_TEST_APPID')
             secret = self.config.get('WECHAT_TEST_SECRET')
@@ -29,7 +31,8 @@ class WeChatNotifier:
         
         try:
             url = f"https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid={appid}&secret={secret}"
-            response = requests.get(url, timeout=10)
+            headers = {'Content-Type': 'application/json; charset=utf-8'}
+            response = requests.get(url, headers=headers, timeout=10)
             data = response.json()
             
             if 'access_token' in data:
@@ -40,6 +43,7 @@ class WeChatNotifier:
             else:
                 logger.error(f"获取access_token失败: {data}")
                 return ''
+                
         except Exception as e:
             logger.error(f"获取access_token异常: {str(e)}")
             return ''
@@ -52,6 +56,7 @@ class WeChatNotifier:
         
         try:
             if self.config.get('WECHAT_TEST'):
+                # 测试号使用客服消息
                 url = f"https://api.weixin.qq.com/cgi-bin/message/custom/send?access_token={access_token}"
                 touser = self.config.get('WECHAT_TEST_TOUSER')
                 
@@ -63,7 +68,8 @@ class WeChatNotifier:
                     }
                 }
                 
-                response = requests.post(url, json=message, timeout=10)
+                headers = {'Content-Type': 'application/json; charset=utf-8'}
+                response = requests.post(url, json=message, headers=headers, timeout=10)
                 result = response.json()
                 
                 logger.info(f"消息发送结果: {result}")
@@ -71,21 +77,33 @@ class WeChatNotifier:
             else:
                 logger.info("正式号建议使用模板消息")
                 return False
+                
         except Exception as e:
             logger.error(f"发送微信消息异常: {str(e)}")
             return False
     
     def format_and_send(self, report: str) -> bool:
+        """格式化并发送推送"""
         return self.send_text_message(report)
     
     def send_news_report(self, title: str, content: str) -> bool:
+        """发送新闻报告"""
         if self.config.get('WECHAT_TEST'):
             full_content = f"{title}\n\n{content}"
             return self.send_text_message(full_content)
         else:
             data = {
-                "first": {"value": title, "color": "#173177"},
-                "content": {"value": content[:500], "color": "#173177"},
-                "remark": {"value": "\n点击查看详情", "color": "#173177"}
+                "first": {
+                    "value": title,
+                    "color": "#173177"
+                },
+                "content": {
+                    "value": content[:500],
+                    "color": "#173177"
+                },
+                "remark": {
+                    "value": "\n点击查看详情",
+                    "color": "#173177"
+                }
             }
             return self.send_template_message(data)
