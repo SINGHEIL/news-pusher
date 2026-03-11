@@ -10,6 +10,12 @@ import logging
 import os
 from datetime import datetime
 
+# ========== 修复导入路径 ==========
+# 确保当前目录在Python路径中
+current_dir = os.path.dirname(os.path.abspath(__file__))
+if current_dir not in sys.path:
+    sys.path.insert(0, current_dir)
+
 # 配置日志
 logging.basicConfig(
     level=logging.INFO,
@@ -32,6 +38,9 @@ def main():
         
         # 1. 导入模块
         logger.info("加载模块...")
+        logger.info(f"当前目录: {os.getcwd()}")
+        logger.info(f"Python路径: {sys.path}")
+        
         try:
             from enhanced_news_fetcher import EnhancedNewsFetcher
             from international_news_fetcher import InternationalNewsFetcher
