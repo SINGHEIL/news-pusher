@@ -2,8 +2,8 @@ name: Global News Push
 
 on:
   schedule:
-    - cron: '0 1 * * *'  # 9:00 AM Beijing time daily
-  workflow_dispatch:      # Manual trigger support
+    - cron: '0 1 * * *'
+  workflow_dispatch:
 
 jobs:
   push-global-news:
@@ -23,24 +23,6 @@ jobs:
         pip install -r requirements.txt
         pip install feedparser lxml
     
-    - name: Test basic functionality
-      run: |
-        # Test if Python modules can be imported
-        python -c "import requests; import bs4; import feedparser; print('✅ Basic modules imported successfully')"
-        
-        # Test network connectivity
-        python -c "
-import requests
-try:
-    response = requests.get('https://www.reuters.com', timeout=10)
-    if response.status_code == 200:
-        print('✅ Can access international websites')
-    else:
-        print(f'⚠️  Status code: {response.status_code}')
-except Exception as e:
-    print(f'⚠️  Network test: {e}')
-"
-    
     - name: Run global news push
       run: python run_global_push.py
       env:
@@ -48,13 +30,3 @@ except Exception as e:
         WECHAT_TEST_SECRET: ${{ secrets.WECHAT_SECRET }}
         WECHAT_TEST_TOUSER: ${{ secrets.WECHAT_TOUSER }}
         OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-    
-    - name: Upload log files
-      if: always()
-      uses: actions/upload-artifact@v3
-      with:
-        name: news-push-logs
-        path: |
-          global_news_push.log
-          news_statistics.md
-        retention-days: 7
