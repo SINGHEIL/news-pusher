@@ -1,32 +1,30 @@
-name: News Push
+name: 每日公考财会新闻推送
 
 on:
   schedule:
-    - cron: '0 1 * * *'  # 北京时间每天早上 9:00
-  workflow_dispatch:     # 允许手动触发
+    - cron: '0 1 * * *'
+  workflow_dispatch:
 
 jobs:
-  push-news:
+  news-push:
     runs-on: ubuntu-latest
     
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-      
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-      
-      - name: Run news push
-        env:
-          WECHAT_TEST_APPID: ${{ secrets.WECHAT_TEST_APPID }}
-          WECHAT_TEST_SECRET: ${{ secrets.WECHAT_TEST_SECRET }}
-          WECHAT_TEST_TOUSER: ${{ secrets.WECHAT_TEST_TOUSER }}
-          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-        run: python run_enhanced_push.py
+    - name: 检出代码
+      uses: actions/checkout@v4
+    
+    - name: 设置Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: 安装依赖
+      run: |
+        pip install requests beautifulsoup4 schedule python-dotenv
+    
+    - name: 运行推送程序
+      run: python run_push.py
+      env:
+        WECHAT_TEST_APPID: ${{ secrets.WECHAT_APPID }}
+        WECHAT_TEST_SECRET: ${{ secrets.WECHAT_SECRET }}
+        WECHAT_TEST_TOUSER: ${{ secrets.WECHAT_TOUSER }}

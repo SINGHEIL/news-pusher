@@ -2,8 +2,8 @@ name: Global News Push
 
 on:
   schedule:
-    - cron: '0 1 * * *'
-  workflow_dispatch:
+    - cron: '0 1 * * *'  # 9:00 AM Beijing time daily
+  workflow_dispatch:      # Manual trigger support
 
 jobs:
   push-global-news:
@@ -22,6 +22,10 @@ jobs:
       run: |
         pip install -r requirements.txt
         pip install feedparser lxml
+    
+    - name: Test imports
+      run: |
+        python -c "import requests; import bs4; import feedparser; print('✅ Core modules imported successfully')"
     
     - name: Run global news push
       run: python run_global_push.py
