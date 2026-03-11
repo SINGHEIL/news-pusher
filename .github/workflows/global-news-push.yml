@@ -1,0 +1,69 @@
+name: 全球新闻推送
+
+on:
+  schedule:
+    - cron: '0 1 * * *'  # 每天北京时间9:00
+  workflow_dispatch:      # 支持手动触发
+
+jobs:
+  push-global-news:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v4
+    
+    - name: 设置Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: 安装依赖
+      run: |
+        pip install -r requirements.txt
+        pip install feedparser lxml
+    
+    - name: 测试外网抓取
+      run: |
+        python -c "
+import sys
+sys.path.append('.')
+try:
+    from international_news_fetcher import InternationalNewsFetcher
+    fetcher = InternationalNewsFetcher()
+    print('✅ 国际新闻抓取器导入成功')
+    
+    import requests
+    test_url = 'https://www.reuters.com'
+    try:
+        response = requests.get(test_url, timeout=10)
+        if response.status_code == 200:
+            print(f'✅ 网络连接正常，可访问外网')
+        else:
+            print(f'⚠️  网络连接异常，状态码: {response.status_code}')
+    except Exception as e:
+        print(f'⚠️  网络测试失败: {e}')
+        
+except Exception as e:
+    print(f'❌ 导入失败: {e}')
+    import traceback
+    traceback.print_exc()
+"
+    
+    - name: 运行全球新闻推送
+      run: python run_global_push.py
+      env:
+        WECHAT_TEST_APPID: ${{ secrets.WECHAT_APPID }}
+        WECHAT_TEST_SECRET: ${{ secrets.WECHAT_SECRET }}
+        WECHAT_TEST_TOUSER: ${{ secrets.WECHAT_TOUSER }}
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    
+    - name: 上传日志文件
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: news-push-logs
+        path: |
+          global_news_push.log
+          news_statistics.md
+        retention-days: 7
