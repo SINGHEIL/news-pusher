@@ -25,23 +25,9 @@ jobs:
     
     - name: Test imports
       run: |
-        python -c "import requests; print('✅ requests imported')"
-        python -c "import bs4; print('✅ bs4 imported')"
-        python -c "import feedparser; print('✅ feedparser imported')"
-    
-    - name: Test network
-      run: |
-        python -c "
-import requests
-try:
-    r = requests.get('https://www.reuters.com', timeout=5)
-    if r.status_code == 200:
-        print('✅ Network OK')
-    else:
-        print(f'⚠️ Status: {r.status_code}')
-except Exception as e:
-    print(f'⚠️ Error: {e}')
-"
+        python -c "import requests; print('requests OK')"
+        python -c "import bs4; print('bs4 OK')"
+        python -c "import feedparser; print('feedparser OK')"
     
     - name: Run global news push
       run: python run_global_push.py
