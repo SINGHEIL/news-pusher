@@ -15,13 +15,10 @@ try:
     logging.info('筛选和格式化新闻...')
     filter = ContentFilter(use_ai=False)
     
-    logging.info('初始化微信推送...')
+    logging.info('初始化推送...')
     import os
     notifier_config = {
-        'WECHAT_TEST': True,
-        'WECHAT_TEST_APPID': os.getenv('WECHAT_TEST_APPID', ''),
-        'WECHAT_TEST_SECRET': os.getenv('WECHAT_TEST_SECRET', ''),
-        'WECHAT_TEST_TOUSER': os.getenv('WECHAT_TEST_TOUSER', ''),
+        'SERVERCHAN_KEY': os.getenv('SERVERCHAN_KEY', ''),
     }
     notifier = WeChatNotifier(notifier_config)
     

@@ -1,195 +1,83 @@
 import requests
 import logging
-import json
+import time
 from typing import Dict
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
 class WeChatNotifier:
-    """微信推送类"""
+    """推送类 - 使用 Server酱推送到微信（无IP限制，免费）"""
     
     def __init__(self, config: Dict):
         self.config = config
-        self.access_token = None
-        self.token_expire_time = 0
     
-    def get_access_token(self) -> str:
-        """获取微信access_token"""
-        import time
-        
-        # 检查token是否有效
-        if self.access_token and time.time() < self.token_expire_time:
-            return self.access_token
-        
-        # 确定使用测试号还是正式号
-        if self.config.get('WECHAT_TEST'):
-            appid = self.config.get('WECHAT_TEST_APPID')
-            secret = self.config.get('WECHAT_TEST_SECRET')
-        else:
-            appid = self.config.get('WECHAT_APPID')
-            secret = self.config.get('WECHAT_SECRET')
-        
-        try:
-            url = f"https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid={appid}&secret={secret}"
-            response = requests.get(url, timeout=10)
-            data = response.json()
-            
-            if 'access_token' in data:
-                self.access_token = data['access_token']
-                self.token_expire_time = time.time() + data.get('expires_in', 7200) - 300  # 提前5分钟过期
-                logger.info("获取微信access_token成功")
-                return self.access_token
-            else:
-                logger.error(f"获取access_token失败: {data}")
-                return ''
-                
-        except Exception as e:
-            logger.error(f"获取access_token异常: {str(e)}")
-            return ''
-    
-    def send_template_message(self, data: Dict) -> bool:
-        """发送模板消息"""
-        access_token = self.get_access_token()
-        if not access_token:
+    def send_serverchan(self, title: str, content: str) -> bool:
+        """
+        通过 Server酱 推送消息到微信
+        文档: https://sct.ftqq.com
+        """
+        sendkey = self.config.get('SERVERCHAN_KEY', '')
+        if not sendkey:
+            logger.error("未配置 SERVERCHAN_KEY")
             return False
         
+        url = f"https://sctapi.ftqq.com/{sendkey}.send"
+        
+        payload = {
+            "title": title,
+            "desp": content  # 支持 Markdown，无字数上限
+        }
+        
         try:
-            url = f"https://api.weixin.qq.com/cgi-bin/message/template/send?access_token={access_token}"
-            
-            # 确定接收者
-            if self.config.get('WECHAT_TEST'):
-                touser = self.config.get('WECHAT_TEST_TOUSER')
-                template_id = ''  # 测试号可能不需要template_id
-            else:
-                touser = self.config.get('WECHAT_TOUSER')
-                template_id = self.config.get('WECHAT_TEMPLATE_ID')
-            
-            message = {
-                "touser": touser,
-                "template_id": template_id,
-                "data": data
-            }
-            
-            response = requests.post(url, json=message, timeout=10)
+            response = requests.post(url, data=payload, timeout=15)
             result = response.json()
+            logger.info(f"Server酱推送结果: {result}")
             
-            if result.get('errcode') == 0:
-                logger.info("微信模板消息发送成功")
+            code = result.get('code', -1)
+            if code == 0:
+                logger.info("✅ Server酱推送成功!")
                 return True
             else:
-                logger.error(f"微信模板消息发送失败: {result}")
+                errmsg = result.get('message', '')
+                logger.error(f"❌ Server酱推送失败! code={code}, message={errmsg}")
                 return False
                 
         except Exception as e:
-            logger.error(f"发送微信模板消息异常: {str(e)}")
+            logger.error(f"Server酱推送异常: {str(e)}")
             return False
-    
-    def send_text_message(self, content: str) -> bool:
-        """发送文本消息（使用模板消息接口）"""
-        access_token = self.get_access_token()
-        if not access_token:
-            return False
-        
-        try:
-            # 使用模板消息接口
-            if self.config.get('WECHAT_TEST'):
-                # 测试号使用模板消息
-                url = f"https://api.weixin.qq.com/cgi-bin/message/template/send?access_token={access_token}"
-                touser = self.config.get('WECHAT_TEST_TOUSER')
-                template_id = ''  # 测试号可能不需要特定模板
-                
-                # 截断内容，避免过长
-                if len(content) > 200:
-                    content = content[:200] + "..."
-                
-                message = {
-                    "touser": touser,
-                    "template_id": template_id,
-                    "data": {
-                        "content": {
-                            "value": content.encode('utf-8', errors='ignore').decode('utf-8'),
-                            "color": "#173177"
-                        }
-                    }
-                }
-                
-                # 添加UTF-8编码
-                headers = {
-                    'Content-Type': 'application/json; charset=utf-8'
-                }
-                response = requests.post(url, json=message, headers=headers, timeout=10)
-                result = response.json()
-                
-                # 如果模板消息失败，尝试使用其他方式
-                if result.get('errcode') != 0:
-                    logger.warning(f"模板消息失败: {result}")
-                    # 尝试使用简单接口
-                    return self._send_simple_message(access_token, touser, content)
-                
-                logger.info("微信消息发送成功")
-                return True
-                
-            else:
-                logger.info("正式号建议使用模板消息")
-                return False
-                
-        except Exception as e:
-            logger.error(f"发送微信消息异常: {str(e)}")
-            return False
-    
-    def _send_simple_message(self, access_token: str, touser: str, content: str) -> bool:
-        """发送简单消息"""
-        try:
-            # 使用客服消息接口（需要在用户48小时内互动过）
-            url = f"https://api.weixin.qq.com/cgi-bin/message/custom/send?access_token={access_token}"
-            
-            message = {
-                "touser": touser,
-                "msgtype": "text",
-                "text": {
-                    "content": content[:1024]  # 限制长度
-                }
-            }
-            
-            # 添加UTF-8编码
-            headers = {
-                'Content-Type': 'application/json; charset=utf-8'
-            }
-            response = requests.post(url, json=message, headers=headers, timeout=10)
-            result = response.json()
-            
-            logger.info(f"简单消息发送结果: {result}")
-            return result.get('errcode') == 0
-            
-        except Exception as e:
-            logger.error(f"发送简单消息异常: {str(e)}")
-            return False
-    
+
     def format_and_send(self, report: str) -> bool:
-        """格式化并发送推送"""
-        # 直接发送文本消息
-        return self.send_text_message(report)
-    
+        """格式化并推送"""
+        title = f"🌍 全球新闻速递 · {datetime.now().strftime('%Y年%m月%d日')}"
+        
+        # 将纯文本转为 Markdown 格式，Server酱支持完整 Markdown
+        md_content = self._to_markdown(report)
+        
+        logger.info(f"准备推送，内容长度: {len(md_content)} 字符")
+        return self.send_serverchan(title, md_content)
+
     def send_news_report(self, title: str, content: str) -> bool:
         """发送新闻报告"""
-        if self.config.get('WECHAT_TEST'):
-            # 测试号发送文本消息
-            full_content = f"{title}\n\n{content}"
-            return self.send_text_message(full_content)
-        else:
-            # 正式号发送模板消息
-            data = {
-                "first": {
-                    "value": title,
-                    "color": "#173177"
-                },
-                "content": {
-                    "value": content[:500],  # 限制长度
-                    "color": "#173177"
-                },
-                "remark": {
-                    "value": "\n点击查看详情",
-                    "color": "#173177"
-                }
-            }
-            return self.send_template_message(data)
+        md_content = self._to_markdown(content)
+        return self.send_serverchan(title, md_content)
+
+    def _to_markdown(self, text: str) -> str:
+        """将纯文本转为 Markdown 格式"""
+        lines = text.split('\n')
+        md_lines = []
+        for line in lines:
+            line_stripped = line.strip()
+            if not line_stripped:
+                md_lines.append('')
+            elif line_stripped.startswith('='):
+                md_lines.append('---')
+            elif line_stripped.startswith('-' * 5):
+                md_lines.append('---')
+            elif any(line_stripped.startswith(e) for e in ['🌍','🇨🇳','🌐','💰','📊','📅','📱','⏰']):
+                md_lines.append(f"## {line_stripped}")
+            elif line_stripped.startswith('【') and line_stripped.endswith('】'):
+                md_lines.append(f"### {line_stripped}")
+            else:
+                md_lines.append(line_stripped)
+        return '\n'.join(md_lines)
